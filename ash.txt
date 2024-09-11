@@ -1,0 +1,278 @@
+rails generate model Author first_name:string last_name:string
+rails generate model Book title:string genre:string author:references
+rails db:migrate
+rails generate controller Authors
+rails generate controller Books
+
+
+
+routes
+
+Rails.application.routes.draw do
+  resources :authors do
+    resource :book, except: [:index, :show]
+  end
+
+  root "authors#index"
+end
+
+
+authorcontroller
+
+class AuthorsController < ApplicationController
+  before_action :set_author, only: %i[show edit update destroy]
+
+  def index
+    @authors = Author.all
+  end
+
+  def show
+    @book = @author.book || @author.build_book
+  end
+
+  def new
+    @author = Author.new
+  end
+
+  def create
+    @author = Author.new(author_params)
+    if @author.save
+      redirect_to @author, notice: 'Author was successfully created.'
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  def edit
+  end
+
+  def update
+    if @author.update(author_params)
+      redirect_to @author, notice: 'Author was successfully updated.'
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
+  def destroy
+    @author.destroy
+    redirect_to authors_url, notice: 'Author was successfully destroyed.'
+  end
+
+  private
+
+  def set_author
+    @author = Author.find(params[:id])
+  end
+
+  def author_params
+    params.require(:author).permit(:first_name, :last_name)
+  end
+end
+
+
+
+bookcontroller
+
+
+class BooksController < ApplicationController
+  before_action :set_author
+  before_action :set_book, only: [:edit, :update, :destroy]
+
+  def new
+    @book = author.build_book
+  end
+
+  def create
+    @book = author.build_book(book_params)
+    if @book.save
+      redirect_to author_path(@author), notice: 'Book was successfully created.'
+    else
+      render 'authors/show', status: :unprocessable_entity
+    end
+  end
+
+  def edit
+  end
+
+  def update
+    if @book.update(book_params)
+      redirect_to author_path(author), notice: 'Book was successfully updated.'
+    else
+      render 'authors/show', status: :unprocessable_entity
+    end
+  end
+
+  def destroy
+    @book.destroy
+    redirect_to author_path(author), notice: 'Book was successfully destroyed.'
+  end
+
+  private
+
+  def set_author
+    @author = Author.find(params[:author_id])
+  end
+
+  def set_book
+    @book = @author.book
+  end
+
+  def book_params
+    params.require(:book).permit(:title, :genre)
+  end
+end
+
+
+
+edit.html
+
+
+<h1>Edit Author</h1>
+
+<%= form_with model: @author do |form| %>
+  <div>
+    <%= form.label :first_name, "First Name" %>
+    <br><%= form.text_field :first_name %>
+  </div>
+  <div>
+    <%= form.label :last_name, "Last Name" %>
+    <br><%= form.text_field :last_name %>
+  </div>
+  <div>
+    <%= form.submit "Create Author" %>
+  </div>
+<% end %>
+
+<%= link_to 'Back', authors_path %>
+<%=link_to 'Home Page', root_path %>
+
+
+
+
+
+index
+
+
+
+<h1>Author Details</h1>
+
+<ul>
+  <% if @authors.present? %>
+    <% @authors.each do |author| %>
+      <li>
+        <%= author.first_name %> <%= author.last_name %>
+        <%= link_to 'Show', author_path(author), class: 'show-link' %> |
+        <%= link_to 'Edit', edit_author_path(author), class: 'edit-link' %> |
+        <%= link_to 'Destroy', author_path(author), method: :delete, data: { confirm: 'Are you sure?' }, class: 'destroy-link' %>
+      </li>
+    <% end %>
+  <% else %>
+    <li>No authors found</li>
+  <% end %>
+</ul>
+
+<%= link_to 'New Author', new_author_path, class: 'new-author-link' %>
+
+
+
+
+
+new 
+
+
+
+<h1>Fill the Details to Add a New Author</h1>
+
+<%= form_with model: @author do |form| %>
+  <div>
+    <%= form.label :first_name, "First Name" %>
+    <br><%= form.text_field :first_name %>
+  </div>
+  <div>
+    <%= form.label :last_name, "Last Name" %>
+    <br><%= form.text_field :last_name %>
+  </div>
+  <div>
+    <%= form.submit "Create Author" %>
+  </div>
+<% end %>
+
+<%= link_to 'Back', authors_path %>
+
+
+
+
+show
+
+
+
+<h1><%= @author.first_name %> <%= @author.last_name %></h1>
+
+<h2>Book</h2>
+<% if @book.persisted? %>
+  <p>
+    <strong>Title:</strong>
+    <%= @book.title %>
+  </p>
+  <p>
+    <strong>Genre:</strong>
+    <%= @book.genre %>
+  </p>
+  <ul>
+    <li><%= link_to "Edit Book", edit_author_book_path(@author) %></li>
+    <li><%= link_to "Destroy Book", author_book_path(@author), method: :delete, data: { confirm: 'Are you sure?' } %></li>
+  </ul>
+<% else %>
+  <p>No book assigned to this author.</p>
+<% end %>
+
+<h2>Add/Edit Book:</h2>
+<%= render 'books/form', author: @author, book: @book %>
+
+<%= link_to 'Back to Authors', authors_path %>
+
+
+
+
+_book/form
+
+
+<%= form_with(model: [@author, @book], local: true) do |form| %>
+  <% if @book.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(@book.errors.count, "error") %> prohibited this book from being saved:</h2>
+
+      <ul>
+        <% @book.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :title %>
+    <%= form.text_field :title %>
+  </div>
+
+  <div class="field">
+    <%= form.label :genre %>
+    <%= form.text_area :genre %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>
+
+
+
+
+edit book
+
+<h1>Edit Book</h1>
+
+<%= render 'form', author: @author , book: @book %>
+
+<%= link_to 'Back', @author %>
