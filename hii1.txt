@@ -1,0 +1,322 @@
+rails generate model Doctor name:string specialization:string
+rails generate model Patient name:string age:integer
+rails generate model Appointment doctor:references patient:references appointment_date:datetime
+rails db:migrate
+
+rails generate controller Doctors index show new create edit update destroy
+rails generate controller Patients index show new create edit update destroy
+rails generate controller Appointments index show new create edit update destroy
+
+
+
+
+class Doctor < ApplicationRecord
+  has_many :appointments
+  has_many :patients, through: :appointments
+end
+
+
+
+class Patient < ApplicationRecord
+  has_many :appointments
+  has_many :doctors, through: :appointments
+end
+
+
+class Appointment < ApplicationRecord
+  belongs_to :doctor
+  belongs_to :patient
+
+  validates :appointment_date, presence: true
+end
+
+
+
+routes
+Rails.application.routes.draw do
+  resources :doctors do
+    resources :appointments, only: [:new, :create, :edit, :update, :destroy]
+  end
+
+  resources :patients do
+    resources :appointments, only: [:index, :show]
+  end
+
+  root 'doctors#index'
+end
+
+
+
+
+doctorcontroller
+
+
+
+class DoctorsController < ApplicationController
+  def index
+    @doctors = Doctor.all
+  end
+
+  def show
+    @doctor = Doctor.find(params[:id])
+  end
+
+  def new
+    @doctor = Doctor.new
+  end
+
+  def create
+    @doctor = Doctor.new(doctor_params)
+    if @doctor.save
+      redirect_to @doctor, notice: 'Doctor was successfully created.'
+    else
+      render :new
+    end
+  end
+
+  def edit
+    @doctor = Doctor.find(params[:id])
+  end
+
+  def update
+    @doctor = Doctor.find(params[:id])
+    if @doctor.update(doctor_params)
+      redirect_to @doctor, notice: 'Doctor was successfully updated.'
+    else
+      render :edit
+    end
+  end
+
+  def destroy
+    @doctor = Doctor.find(params[:id])
+    @doctor.destroy
+    redirect_to doctors_url, notice: 'Doctor was successfully destroyed.'
+  end
+
+  private
+
+  def doctor_params
+    params.require(:doctor).permit(:name, :specialization)
+  end
+end
+
+
+
+
+patient controller
+
+
+
+class PatientsController < ApplicationController
+  def index
+    @patients = Patient.all
+  end
+
+  def show
+    @patient = Patient.find(params[:id])
+  end
+
+  def new
+    @patient = Patient.new
+  end
+
+  def create
+    @patient = Patient.new(patient_params)
+    if @patient.save
+      redirect_to @patient, notice: 'Patient was successfully created.'
+    else
+      render :new
+    end
+  end
+
+  def edit
+    @patient = Patient.find(params[:id])
+  end
+
+  def update
+    @patient = Patient.find(params[:id])
+    if @patient.update(patient_params)
+      redirect_to @patient, notice: 'Patient was successfully updated.'
+    else
+      render :edit
+    end
+  end
+
+  def destroy
+    @patient = Patient.find(params[:id])
+    @patient.destroy
+    redirect_to patients_url, notice: 'Patient was successfully destroyed.'
+  end
+
+  private
+
+  def patient_params
+    params.require(:patient).permit(:name, :age)
+  end
+end
+
+
+
+
+appointment
+
+
+
+
+
+class AppointmentsController < ApplicationController
+  before_action :set_doctor, only: [:new, :create, :edit, :update, :destroy]
+
+  def index
+    @patient = Patient.find(params[:patient_id])
+    @appointments = @patient.appointments
+  end
+
+  def show
+    @patient = Patient.find(params[:patient_id])
+    @appointment = @patient.appointments.find(params[:id])
+  end
+
+  def new
+    @appointment = @doctor.appointments.build
+  end
+
+  def create
+    @appointment = @doctor.appointments.build(appointment_params)
+    if @appointment.save
+      redirect_to @doctor, notice: 'Appointment was successfully created.'
+    else
+      render :new
+    end
+  end
+
+  def edit
+    @appointment = @doctor.appointments.find(params[:id])
+  end
+
+  def update
+    @appointment = @doctor.appointments.find(params[:id])
+    if @appointment.update(appointment_params)
+      redirect_to @doctor, notice: 'Appointment was successfully updated.'
+    else
+      render :edit
+    end
+  end
+
+  def destroy
+    @appointment = @doctor.appointments.find(params[:id])
+    @appointment.destroy
+    redirect_to @doctor, notice: 'Appointment was successfully destroyed.'
+  end
+
+  private
+
+  def set_doctor
+    @doctor = Doctor.find(params[:doctor_id])
+  end
+
+  def appointment_params
+    params.require(:appointment).permit(:patient_id, :appointment_date)
+  end
+end
+
+
+
+
+docindex
+
+
+<h1>Doctors</h1>
+
+<%= link_to 'New Doctor', new_doctor_path %>
+
+<ul>
+  <% @doctors.each do |doctor| %>
+    <li>
+      <%= link_to doctor.name, doctor_path(doctor) %> - <%= doctor.specialization %>
+      <%= link_to 'Edit', edit_doctor_path(doctor) %>
+      <%= link_to 'Destroy', doctor, method: :delete, data: { confirm: 'Are you sure?' } %>
+    </li>
+  <% end %>
+</ul>
+
+
+doc/show
+
+
+
+<h1><%= @doctor.name %> - <%= @doctor.specialization %></h1>
+
+<%= link_to 'Edit', edit_doctor_path(@doctor) %>
+<%= link_to 'Back', doctors_path %>
+
+<h2>Appointments</h2>
+<%= link_to 'New Appointment', new_doctor_appointment_path(@doctor) %>
+
+<ul>
+  <% @doctor.appointments.each do |appointment| %>
+    <li>
+      Appointment with <%= appointment.patient.name %> on <%= appointment.appointment_date %>
+      <%= link_to 'Edit', edit_doctor_appointment_path(@doctor, appointment) %>
+      <%= link_to 'Destroy', doctor_appointment_path(@doctor, appointment), method: :delete, data: { confirm: 'Are you sure?' } %>
+    </li>
+  <% end %>
+</ul>
+
+
+
+
+
+appoint /form
+
+
+<%= form_with(model: [ @doctor, @appointment ], local: true) do |form| %>
+  <% if @appointment.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(@appointment.errors.count, "error") %> prohibited this appointment from being saved:</h2>
+
+      <ul>
+        <% @appointment.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :patient_id %>
+    <%= form.collection_select :patient_id, Patient.all, :id, :name %>
+  </div>
+
+  <div class="field">
+    <%= form.label :appointment_date %>
+    <%= form.datetime_select :appointment_date %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>
+
+
+newapppoin
+
+
+
+
+
+
+
+<h1>New Appointment</h1>
+<%= render 'form', doctor: @doctor, appointment: @appointment %>
+<%= link_to 'Back', doctor_path(@doctor) %>
+
+
+
+edit
+
+
+
+<h1>Edit Appointment</h1>
+<%= render 'form', doctor: @doctor, appointment: @appointment %>
+<%= link_to 'Back', doctor_path(@doctor) %>
