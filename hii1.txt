@@ -1,264 +1,156 @@
-rails generate model Doctor name:string specialization:string
-rails generate model Patient name:string age:integer
-rails generate model Appointment doctor:references patient:references appointment_date:datetime
+rails generate model Post title:string body:text
+rails generate model Comment post:references body:text
 rails db:migrate
-
-rails generate controller Doctors index show new create edit update destroy
-rails generate controller Patients index show new create edit update destroy
-rails generate controller Appointments index show new create edit update destroy
+rails generate controller Posts
+rails generate controller Comments
 
 
 
-
-class Doctor < ApplicationRecord
-  has_many :appointments
-  has_many :patients, through: :appointments
+# app/models/post.rb
+class Post < ApplicationRecord
+  has_many :comments, dependent: :destroy
+  accepts_nested_attributes_for :comments, allow_destroy: true
 end
 
 
 
-class Patient < ApplicationRecord
-  has_many :appointments
-  has_many :doctors, through: :appointments
-end
 
-
-class Appointment < ApplicationRecord
-  belongs_to :doctor
-  belongs_to :patient
-
-  validates :appointment_date, presence: true
+# app/models/post.rb
+class Post < ApplicationRecord
+  has_many :comments, dependent: :destroy
+  accepts_nested_attributes_for :comments, allow_destroy: true
 end
 
 
 
-routes
+# config/routes.rb
 Rails.application.routes.draw do
-  resources :doctors do
-    resources :appointments, only: [:new, :create, :edit, :update, :destroy]
-  end
+  root 'posts#index'
 
-  resources :patients do
-    resources :appointments, only: [:index, :show]
-  end
+  # Custom routes for posts
+  get 'posts', to: 'posts#index', as: 'posts'
+  get 'posts/new', to: 'posts#new', as: 'new_post'
+  post 'posts', to: 'posts#create'
+  get 'posts/:id', to: 'posts#show', as: 'post'
+  get 'posts/:id/edit', to: 'posts#edit', as: 'edit_post'
+  patch 'posts/:id', to: 'posts#update'
+  put 'posts/:id', to: 'posts#update'
+  delete 'posts/:id', to: 'posts#destroy'
 
-  root 'doctors#index'
+  # Custom routes for comments
+  get 'posts/:post_id/comments/:id/edit', to: 'comments#edit', as: 'edit_post_comment'
+  patch 'posts/:post_id/comments/:id', to: 'comments#update'
+  put 'posts/:post_id/comments/:id', to: 'comments#update'
+  delete 'posts/:post_id/comments/:id', to: 'comments#destroy'
 end
 
 
 
-
-doctorcontroller
-
+postcontroller
 
 
-class DoctorsController < ApplicationController
+# app/controllers/posts_controller.rb
+class PostsController < ApplicationController
+  before_action :set_post, only: %i[show edit update destroy]
+
   def index
-    @doctors = Doctor.all
+    @posts = Post.all
   end
 
   def show
-    @doctor = Doctor.find(params[:id])
   end
 
   def new
-    @doctor = Doctor.new
+    @post = Post.new
+    @post.comments.build
+  end
+
+  def edit
   end
 
   def create
-    @doctor = Doctor.new(doctor_params)
-    if @doctor.save
-      redirect_to @doctor, notice: 'Doctor was successfully created.'
+    @post = Post.new(post_params)
+    if @post.save
+      redirect_to @post, notice: 'Post was successfully created.'
     else
       render :new
     end
   end
 
-  def edit
-    @doctor = Doctor.find(params[:id])
-  end
-
   def update
-    @doctor = Doctor.find(params[:id])
-    if @doctor.update(doctor_params)
-      redirect_to @doctor, notice: 'Doctor was successfully updated.'
+    if @post.update(post_params)
+      redirect_to @post, notice: 'Post was successfully updated.'
     else
       render :edit
     end
   end
 
   def destroy
-    @doctor = Doctor.find(params[:id])
-    @doctor.destroy
-    redirect_to doctors_url, notice: 'Doctor was successfully destroyed.'
+    @post.destroy
+    redirect_to posts_url, notice: 'Post was successfully destroyed.'
   end
 
   private
 
-  def doctor_params
-    params.require(:doctor).permit(:name, :specialization)
+  def set_post
+    @post = Post.find(params[:id])
+  end
+
+  def post_params
+    params.require(:post).permit(:title, :body, comments_attributes: [:id, :body, :_destroy])
   end
 end
 
 
 
+\
+commentcontroller
 
-patient controller
 
-
-
-class PatientsController < ApplicationController
-  def index
-    @patients = Patient.all
-  end
-
-  def show
-    @patient = Patient.find(params[:id])
-  end
-
-  def new
-    @patient = Patient.new
-  end
-
-  def create
-    @patient = Patient.new(patient_params)
-    if @patient.save
-      redirect_to @patient, notice: 'Patient was successfully created.'
-    else
-      render :new
-    end
-  end
+# app/controllers/comments_controller.rb
+class CommentsController < ApplicationController
+  before_action :set_comment, only: %i[edit update destroy]
 
   def edit
-    @patient = Patient.find(params[:id])
   end
 
   def update
-    @patient = Patient.find(params[:id])
-    if @patient.update(patient_params)
-      redirect_to @patient, notice: 'Patient was successfully updated.'
+    if @comment.update(comment_params)
+      redirect_to @comment.post, notice: 'Comment was successfully updated.'
     else
       render :edit
     end
   end
 
   def destroy
-    @patient = Patient.find(params[:id])
-    @patient.destroy
-    redirect_to patients_url, notice: 'Patient was successfully destroyed.'
+    @comment.destroy
+    redirect_to @comment.post, notice: 'Comment was successfully destroyed.'
   end
 
   private
 
-  def patient_params
-    params.require(:patient).permit(:name, :age)
+  def set_comment
+    @comment = Comment.find(params[:id])
+  end
+
+  def comment_params
+    params.require(:comment).permit(:body)
   end
 end
 
 
 
 
-appointment
 
-
-
-
-
-class AppointmentsController < ApplicationController
-  before_action :set_doctor, only: [:new, :create, :edit, :update, :destroy]
-
-  def index
-    @patient = Patient.find(params[:patient_id])
-    @appointments = @patient.appointments
-  end
-
-  def show
-    @patient = Patient.find(params[:patient_id])
-    @appointment = @patient.appointments.find(params[:id])
-  end
-
-  def new
-    @appointment = @doctor.appointments.build
-  end
-
-  def create
-    @appointment = @doctor.appointments.build(appointment_params)
-    if @appointment.save
-      redirect_to @doctor, notice: 'Appointment was successfully created.'
-    else
-      render :new
-    end
-  end
-
-  def edit
-    @appointment = @doctor.appointments.find(params[:id])
-  end
-
-  def update
-    @appointment = @doctor.appointments.find(params[:id])
-    if @appointment.update(appointment_params)
-      redirect_to @doctor, notice: 'Appointment was successfully updated.'
-    else
-      render :edit
-    end
-  end
-
-  def destroy
-    @appointment = @doctor.appointments.find(params[:id])
-    @appointment.destroy
-    redirect_to @doctor, notice: 'Appointment was successfully destroyed.'
-  end
-
-  private
-
-  def set_doctor
-    @doctor = Doctor.find(params[:doctor_id])
-  end
-
-  def appointment_params
-    params.require(:appointment).permit(:patient_id, :appointment_date)
-  end
-end
-
-
-
-
-docindex
-
-
-<h1>Doctors</h1>
-
-<%= link_to 'New Doctor', new_doctor_path %>
-
+<!-- app/views/posts/index.html.erb -->
+<h1>Posts</h1>
+<%= link_to 'New Post', new_post_path %>
 <ul>
-  <% @doctors.each do |doctor| %>
+  <% @posts.each do |post| %>
     <li>
-      <%= link_to doctor.name, doctor_path(doctor) %> - <%= doctor.specialization %>
-      <%= link_to 'Edit', edit_doctor_path(doctor) %>
-      <%= link_to 'Destroy', doctor, method: :delete, data: { confirm: 'Are you sure?' } %>
-    </li>
-  <% end %>
-</ul>
-
-
-doc/show
-
-
-
-<h1><%= @doctor.name %> - <%= @doctor.specialization %></h1>
-
-<%= link_to 'Edit', edit_doctor_path(@doctor) %>
-<%= link_to 'Back', doctors_path %>
-
-<h2>Appointments</h2>
-<%= link_to 'New Appointment', new_doctor_appointment_path(@doctor) %>
-
-<ul>
-  <% @doctor.appointments.each do |appointment| %>
-    <li>
-      Appointment with <%= appointment.patient.name %> on <%= appointment.appointment_date %>
-      <%= link_to 'Edit', edit_doctor_appointment_path(@doctor, appointment) %>
-      <%= link_to 'Destroy', doctor_appointment_path(@doctor, appointment), method: :delete, data: { confirm: 'Are you sure?' } %>
+      <%= link_to post.title, post_path(post) %>
+      <%= link_to 'Edit', edit_post_path(post) %> |
+      <%= link_to 'Destroy', post_path(post), method: :delete, data: { confirm: 'Are you sure?' } %>
     </li>
   <% end %>
 </ul>
@@ -267,16 +159,49 @@ doc/show
 
 
 
-appoint /form
+<!-- app/views/posts/show.html.erb -->
+<h1><%= @post.title %></h1>
+<p><%= @post.body %></p>
+<%= link_to 'Edit', edit_post_path(@post) %> |
+<%= link_to 'Back', posts_path %>
+
+<h2>Comments</h2>
+<ul>
+  <% @post.comments.each do |comment| %>
+    <li>
+      <%= comment.body %>
+      <%= link_to 'Edit', edit_post_comment_path(@post, comment) %> |
+      <%= link_to 'Destroy', post_comment_path(@post, comment), method: :delete, data: { confirm: 'Are you sure?' } %>
+    </li>
+  <% end %>
+</ul>
 
 
-<%= form_with(model: [ @doctor, @appointment ], local: true) do |form| %>
-  <% if @appointment.errors.any? %>
+
+
+
+<!-- app/views/posts/new.html.erb -->
+<h1>New Post</h1>
+<%= render 'form', post: @post %>
+<%= link_to 'Back', posts_path %>
+
+
+
+<!-- app/views/posts/edit.html.erb -->
+<h1>Edit Post</h1>
+<%= render 'form', post: @post %>
+<%= link_to 'Back', @post %>
+
+
+
+
+<!-- app/views/posts/_form.html.erb -->
+<%= form_with(model: post, local: true, url: post.new_record? ? posts_path : post_path(post), method: post.new_record? ? :post : :patch) do |form| %>
+  <% if post.errors.any? %>
     <div id="error_explanation">
-      <h2><%= pluralize(@appointment.errors.count, "error") %> prohibited this appointment from being saved:</h2>
-
+      <h2><%= pluralize(post.errors.count, "error") %> prohibited this post from being saved:</h2>
       <ul>
-        <% @appointment.errors.full_messages.each do |message| %>
+        <% post.errors.full_messages.each do |message| %>
           <li><%= message %></li>
         <% end %>
       </ul>
@@ -284,14 +209,24 @@ appoint /form
   <% end %>
 
   <div class="field">
-    <%= form.label :patient_id %>
-    <%= form.collection_select :patient_id, Patient.all, :id, :name %>
+    <%= form.label :title %>
+    <%= form.text_field :title %>
   </div>
 
   <div class="field">
-    <%= form.label :appointment_date %>
-    <%= form.datetime_select :appointment_date %>
+    <%= form.label :body %>
+    <%= form.text_area :body %>
   </div>
+
+  <h3>Comments</h3>
+  <%= form.fields_for :comments do |comment_form| %>
+    <div class="field">
+      <%= comment_form.label :body %>
+      <%= comment_form.text_area :body %>
+      <%= comment_form.check_box :_destroy %>
+      <%= comment_form.label :_destroy, 'Remove this comment' %>
+    </div>
+  <% end %>
 
   <div class="actions">
     <%= form.submit %>
@@ -299,24 +234,30 @@ appoint /form
 <% end %>
 
 
-newapppoin
 
 
 
+<!-- app/views/comments/edit.html.erb -->
+<h1>Edit Comment</h1>
+<%= form_with(model: [ @comment.post, @comment ], local: true, url: post_comment_path(@comment.post, @comment), method: :patch) do |form| %>
+  <% if @comment.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(@comment.errors.count, "error") %> prohibited this comment from being saved:</h2>
+      <ul>
+        <% @comment.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
 
+  <div class="field">
+    <%= form.label :body %>
+    <%= form.text_area :body %>
+  </div>
 
-
-
-<h1>New Appointment</h1>
-<%= render 'form', doctor: @doctor, appointment: @appointment %>
-<%= link_to 'Back', doctor_path(@doctor) %>
-
-
-
-edit
-
-
-
-<h1>Edit Appointment</h1>
-<%= render 'form', doctor: @doctor, appointment: @appointment %>
-<%= link_to 'Back', doctor_path(@doctor) %>
+  <div class="actions">
+    <%= form.submit 'Update Comment' %>
+  </div>
+<% end %>
+<%= link_to 'Back', post_path(@comment.post) %>
