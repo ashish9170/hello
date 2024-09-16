@@ -1,140 +1,72 @@
-rails generate model Post title:string body:text
-rails generate model Comment post:references body:text
+rails generate model Article title:string content:text
+rails generate model Comment article:references content:text
 rails db:migrate
-rails generate controller Posts
-rails generate controller Comments
 
 
 
-# app/models/post.rb
-class Post < ApplicationRecord
+
+class Article < ApplicationRecord
   has_many :comments, dependent: :destroy
   accepts_nested_attributes_for :comments, allow_destroy: true
 end
 
 
 
-
-# app/models/post.rb
-class Post < ApplicationRecord
-  has_many :comments, dependent: :destroy
-  accepts_nested_attributes_for :comments, allow_destroy: true
+class Comment < ApplicationRecord
+  belongs_to :article
 end
 
 
 
-# config/routes.rb
-Rails.application.routes.draw do
-  root 'posts#index'
 
-  # Custom routes for posts
-  get 'posts', to: 'posts#index', as: 'posts'
-  get 'posts/new', to: 'posts#new', as: 'new_post'
-  post 'posts', to: 'posts#create'
-  get 'posts/:id', to: 'posts#show', as: 'post'
-  get 'posts/:id/edit', to: 'posts#edit', as: 'edit_post'
-  patch 'posts/:id', to: 'posts#update'
-  put 'posts/:id', to: 'posts#update'
-  delete 'posts/:id', to: 'posts#destroy'
-
-  # Custom routes for comments
-  get 'posts/:post_id/comments/:id/edit', to: 'comments#edit', as: 'edit_post_comment'
-  patch 'posts/:post_id/comments/:id', to: 'comments#update'
-  put 'posts/:post_id/comments/:id', to: 'comments#update'
-  delete 'posts/:post_id/comments/:id', to: 'comments#destroy'
-end
-
-
-
-postcontroller
-
-
-# app/controllers/posts_controller.rb
-class PostsController < ApplicationController
-  before_action :set_post, only: %i[show edit update destroy]
+class ArticlesController < ApplicationController
+  before_action :set_article, only: [:show, :edit, :update, :destroy]
 
   def index
-    @posts = Post.all
+    @articles = Article.all
   end
 
   def show
+    @comment = @article.comments.build
   end
 
   def new
-    @post = Post.new
-    @post.comments.build
-  end
-
-  def edit
+    @article = Article.new
   end
 
   def create
-    @post = Post.new(post_params)
-    if @post.save
-      redirect_to @post, notice: 'Post was successfully created.'
+    @article = Article.new(article_params)
+    if @article.save
+      redirect_to @article, notice: 'Article was successfully created.'
     else
       render :new
     end
   end
 
-  def update
-    if @post.update(post_params)
-      redirect_to @post, notice: 'Post was successfully updated.'
-    else
-      render :edit
-    end
-  end
-
-  def destroy
-    @post.destroy
-    redirect_to posts_url, notice: 'Post was successfully destroyed.'
-  end
-
-  private
-
-  def set_post
-    @post = Post.find(params[:id])
-  end
-
-  def post_params
-    params.require(:post).permit(:title, :body, comments_attributes: [:id, :body, :_destroy])
-  end
-end
-
-
-
-\
-commentcontroller
-
-
-# app/controllers/comments_controller.rb
-class CommentsController < ApplicationController
-  before_action :set_comment, only: %i[edit update destroy]
-
   def edit
   end
 
   def update
-    if @comment.update(comment_params)
-      redirect_to @comment.post, notice: 'Comment was successfully updated.'
+    if @article.update(article_params)
+      redirect_to @article, notice: 'Article was successfully updated.'
     else
       render :edit
     end
   end
 
   def destroy
-    @comment.destroy
-    redirect_to @comment.post, notice: 'Comment was successfully destroyed.'
+    @article.destroy
+    redirect_to articles_url, notice: 'Article was successfully destroyed.'
   end
 
   private
 
-  def set_comment
-    @comment = Comment.find(params[:id])
+  def set_article
+    @article = Article.find(params[:id])
   end
 
-  def comment_params
-    params.require(:comment).permit(:body)
+  def article_params
+    params.require(:article).permit(:title, :content, comments_attributes: [:id, :content, :_destroy])
   end
 end
 
@@ -142,15 +74,54 @@ end
 
 
 
-<!-- app/views/posts/index.html.erb -->
-<h1>Posts</h1>
-<%= link_to 'New Post', new_post_path %>
+class CommentsController < ApplicationController
+  def create
+    @article = Article.find(params[:article_id])
+    @comment = @article.comments.build(comment_params)
+    if @comment.save
+      redirect_to @article, notice: 'Comment was successfully created.'
+    else
+      render 'articles/show'
+    end
+  end
+
+  private
+
+  def comment_params
+    params.require(:comment).permit(:content)
+  end
+end
+
+
+
+
+
+Rails.application.routes.draw do
+  resources :articles do
+    resources :comments, only: [:create]
+  end
+  root "articles#index"
+end
+
+
+
+
+
+
+article index
+
+
+
+<h1>Articles</h1>
+
+<%= link_to 'New Article', new_article_path %>
+
 <ul>
-  <% @posts.each do |post| %>
+  <% @articles.each do |article| %>
     <li>
-      <%= link_to post.title, post_path(post) %>
-      <%= link_to 'Edit', edit_post_path(post) %> |
-      <%= link_to 'Destroy', post_path(post), method: :delete, data: { confirm: 'Are you sure?' } %>
+      <%= link_to article.title, article %>
+      <%= link_to 'Edit', edit_article_path(article) %> |
+      <%= link_to 'Destroy', article, method: :delete, data: { confirm: 'Are you sure?' } %>
     </li>
   <% end %>
 </ul>
@@ -158,106 +129,80 @@ end
 
 
 
+show
 
-<!-- app/views/posts/show.html.erb -->
-<h1><%= @post.title %></h1>
-<p><%= @post.body %></p>
-<%= link_to 'Edit', edit_post_path(@post) %> |
-<%= link_to 'Back', posts_path %>
+
+<h1><%= @article.title %></h1>
+<p><%= @article.content %></p>
 
 <h2>Comments</h2>
-<ul>
-  <% @post.comments.each do |comment| %>
-    <li>
-      <%= comment.body %>
-      <%= link_to 'Edit', edit_post_comment_path(@post, comment) %> |
-      <%= link_to 'Destroy', post_comment_path(@post, comment), method: :delete, data: { confirm: 'Are you sure?' } %>
-    </li>
-  <% end %>
-</ul>
-
-
-
-
-
-<!-- app/views/posts/new.html.erb -->
-<h1>New Post</h1>
-<%= render 'form', post: @post %>
-<%= link_to 'Back', posts_path %>
-
-
-
-<!-- app/views/posts/edit.html.erb -->
-<h1>Edit Post</h1>
-<%= render 'form', post: @post %>
-<%= link_to 'Back', @post %>
-
-
-
-
-<!-- app/views/posts/_form.html.erb -->
-<%= form_with(model: post, local: true, url: post.new_record? ? posts_path : post_path(post), method: post.new_record? ? :post : :patch) do |form| %>
-  <% if post.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(post.errors.count, "error") %> prohibited this post from being saved:</h2>
-      <ul>
-        <% post.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
-
-  <div class="field">
-    <%= form.label :title %>
-    <%= form.text_field :title %>
+<% @article.comments.each do |comment| %>
+  <div class="comment">
+    <p><%= comment.content %></p>
   </div>
+<% end %>
 
+<h2>Add a Comment</h2>
+<%= form_with(model: [@article, @comment], local: true) do |form| %>
   <div class="field">
-    <%= form.label :body %>
-    <%= form.text_area :body %>
+    <%= form.label :content %>
+    <%= form.text_area :content %>
   </div>
-
-  <h3>Comments</h3>
-  <%= form.fields_for :comments do |comment_form| %>
-    <div class="field">
-      <%= comment_form.label :body %>
-      <%= comment_form.text_area :body %>
-      <%= comment_form.check_box :_destroy %>
-      <%= comment_form.label :_destroy, 'Remove this comment' %>
-    </div>
-  <% end %>
-
   <div class="actions">
     <%= form.submit %>
   </div>
 <% end %>
 
+<%= link_to 'Back', articles_path %>
 
 
 
 
-<!-- app/views/comments/edit.html.erb -->
-<h1>Edit Comment</h1>
-<%= form_with(model: [ @comment.post, @comment ], local: true, url: post_comment_path(@comment.post, @comment), method: :patch) do |form| %>
-  <% if @comment.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(@comment.errors.count, "error") %> prohibited this comment from being saved:</h2>
-      <ul>
-        <% @comment.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
+new 
 
+
+
+<h1>New Article</h1>
+
+<%= form_with(model: @article, local: true) do |form| %>
   <div class="field">
-    <%= form.label :body %>
-    <%= form.text_area :body %>
+    <%= form.label :title %>
+    <%= form.text_field :title %>
   </div>
-
+  <div class="field">
+    <%= form.label :content %>
+    <%= form.text_area :content %>
+  </div>
   <div class="actions">
-    <%= form.submit 'Update Comment' %>
+    <%= form.submit %>
   </div>
 <% end %>
-<%= link_to 'Back', post_path(@comment.post) %>
+
+<%= link_to 'Back', articles_path %>
+
+
+
+
+
+
+edit
+
+
+
+<h1>Edit Article</h1>
+
+<%= form_with(model: @article, local: true) do |form| %>
+  <div class="field">
+    <%= form.label :title %>
+    <%= form.text_field :title %>
+  </div>
+  <div class="field">
+    <%= form.label :content %>
+    <%= form.text_area :content %>
+  </div>
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>
+
+<%= link_to 'Back', articles_path %>
