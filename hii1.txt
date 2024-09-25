@@ -1,94 +1,65 @@
-rails generate model Article title:string content:text
-rails generate model Comment article:references content:text
-rails db:migrate
-
-
-
-
-class Article < ApplicationRecord
-  has_many :comments, dependent: :destroy
-  accepts_nested_attributes_for :comments, allow_destroy: true
-end
-
-
-
-class Comment < ApplicationRecord
-  belongs_to :article
-end
-
-
-
-
-class ArticlesController < ApplicationController
-  before_action :set_article, only: [:show, :edit, :update, :destroy]
+# app/controllers/authors_controller.rb
+class AuthorsController < ApplicationController
+  before_action :set_author, only: %i[show edit update destroy]
 
   def index
-    @articles = Article.all
+    @authors = Author.all
+    @author = Author.new
   end
 
-  def show
-    @comment = @article.comments.build
-  end
+  def show; end
 
   def new
-    @article = Article.new
+    @author = Author.new
   end
 
+  def edit; end
+
   def create
-    @article = Article.new(article_params)
-    if @article.save
-      redirect_to @article, notice: 'Article was successfully created.'
+    @new_author = Author.new(author_params)
+    if @new_author.save
+      respond_to do |format|
+        format.html { redirect_to authors_path, notice: 'Author was successfully created.' }
+        format.js   # Add this line
+      end
     else
-      render :new
+      respond_to do |format|
+        format.html { render :new, status: :unprocessable_entity }
+        format.js   # Add this line
+      end
     end
   end
 
-  def edit
-  end
-
   def update
-    if @article.update(article_params)
-      redirect_to @article, notice: 'Article was successfully updated.'
+    if @author.update(author_params)
+      respond_to do |format|
+        format.html { redirect_to authors_path, notice: 'Author was successfully updated.' }
+        format.js   # Add this line
+      end
     else
-      render :edit
+      respond_to do |format|
+        format.html { render :edit, status: :unprocessable_entity }
+        format.js   # Add this line
+      end
     end
   end
 
   def destroy
-    @article.destroy
-    redirect_to articles_url, notice: 'Article was successfully destroyed.'
-  end
-
-  private
-
-  def set_article
-    @article = Article.find(params[:id])
-  end
-
-  def article_params
-    params.require(:article).permit(:title, :content, comments_attributes: [:id, :content, :_destroy])
-  end
-end
-
-
-
-
-
-class CommentsController < ApplicationController
-  def create
-    @article = Article.find(params[:article_id])
-    @comment = @article.comments.build(comment_params)
-    if @comment.save
-      redirect_to @article, notice: 'Comment was successfully created.'
-    else
-      render 'articles/show'
+    @author.destroy
+    respond_to do |format|
+      format.html { redirect_to authors_path, notice: 'Author was successfully destroyed.' }
+      format.js   # Add this line
     end
   end
 
   private
 
-  def comment_params
-    params.require(:comment).permit(:content)
+  def set_author
+    @author = Author.find(params[:id])
+  end
+
+  def author_params
+    params.require(:author).permit(:first_name, :last_name)
   end
 end
 
@@ -96,113 +67,127 @@ end
 
 
 
-Rails.application.routes.draw do
-  resources :articles do
-    resources :comments, only: [:create]
-  end
-  root "articles#index"
-end
+// app/views/authors/create.js.erb
+$('#authors_list').append('<%= j render @new_author %>');
+$('#new_author')[0].reset();
 
 
 
 
 
+// app/views/authors/update.js.erb
+$('#author_<%= @author.id %>').replaceWith('<%= j render @author %>');
 
-article index
 
 
 
-<h1>Articles</h1>
 
-<%= link_to 'New Article', new_article_path %>
+// app/views/authors/destroy.js.erb
+$('#author_<%= @author.id %>').remove();
 
-<ul>
-  <% @articles.each do |article| %>
-    <li>
-      <%= link_to article.title, article %>
-      <%= link_to 'Edit', edit_article_path(article) %> |
-      <%= link_to 'Destroy', article, method: :delete, data: { confirm: 'Are you sure?' } %>
-    </li>
+
+
+
+
+<!-- app/views/authors/index.html.erb -->
+<h1>Authors</h1>
+
+<div id="authors_list">
+  <%= render @authors %>
+</div>
+
+<h2>New Author</h2>
+<%= render 'form', author: @author %>
+
+
+
+
+
+<!-- app/views/authors/_author.html.erb -->
+<div id="author_<%= author.id %>">
+  <p><strong><%= author.first_name %> <%= author.last_name %></strong></p>
+  <%= link_to 'Edit', edit_author_path(author), remote: true %> |
+  <%= link_to 'Destroy', author, method: :delete, data: { confirm: 'Are you sure?' }, remote: true %>
+</div>
+
+
+
+
+
+<!-- app/views/authors/_form.html.erb -->
+<%= form_with(model: author, local: false, id: 'new_author') do |form| %>
+  <% if author.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(author.errors.count, "error") %> prohibited this author from being saved:</h2>
+
+      <ul>
+        <% author.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
   <% end %>
-</ul>
 
-
-
-
-show
-
-
-<h1><%= @article.title %></h1>
-<p><%= @article.content %></p>
-
-<h2>Comments</h2>
-<% @article.comments.each do |comment| %>
-  <div class="comment">
-    <p><%= comment.content %></p>
-  </div>
-<% end %>
-
-<h2>Add a Comment</h2>
-<%= form_with(model: [@article, @comment], local: true) do |form| %>
   <div class="field">
-    <%= form.label :content %>
-    <%= form.text_area :content %>
+    <%= form.label :first_name %>
+    <%= form.text_field :first_name %>
   </div>
+
+  <div class="field">
+    <%= form.label :last_name %>
+    <%= form.text_field :last_name %>
+  </div>
+
   <div class="actions">
     <%= form.submit %>
   </div>
 <% end %>
 
-<%= link_to 'Back', articles_path %>
+
+
+
+// app/views/authors/new.js.erb
+$('#form_container').html('<%= j render 'form', author: @author %>');
 
 
 
 
-new 
-
-
-
-<h1>New Article</h1>
-
-<%= form_with(model: @article, local: true) do |form| %>
-  <div class="field">
-    <%= form.label :title %>
-    <%= form.text_field :title %>
-  </div>
-  <div class="field">
-    <%= form.label :content %>
-    <%= form.text_area :content %>
-  </div>
-  <div class="actions">
-    <%= form.submit %>
-  </div>
-<% end %>
-
-<%= link_to 'Back', articles_path %>
+// app/views/authors/edit.js.erb
+$('#form_container').html('<%= j render 'form', author: @author %>');
 
 
 
 
+<!-- app/views/authors/index.html.erb -->
+<h1>Authors</h1>
+
+<div id="authors_list">
+  <%= render @authors %>
+</div>
+
+<div id="form_container">
+  <%= render 'form', author: @author %>
+</div>
 
 
-edit
+
+rails new ajax_authors_app
+cd ajax_authors_app
+
+
+rails generate model Author first_name:string last_name:string
+rails db:migrate
+
+
+# config/routes.rb
+Rails.application.routes.draw do
+  resources :authors
+  root 'authors#index'
+end
 
 
 
-<h1>Edit Article</h1>
-
-<%= form_with(model: @article, local: true) do |form| %>
-  <div class="field">
-    <%= form.label :title %>
-    <%= form.text_field :title %>
-  </div>
-  <div class="field">
-    <%= form.label :content %>
-    <%= form.text_area :content %>
-  </div>
-  <div class="actions">
-    <%= form.submit %>
-  </div>
-<% end %>
-
-<%= link_to 'Back', articles_path %>
+// app/assets/javascripts/application.js
+//= require jquery
+//= require jquery_ujs
+//= require_tree .
