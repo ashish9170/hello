@@ -1,0 +1,177 @@
+class PostsController < ApplicationController
+  before_action :authenticate_user! #,except: [:index, :show]
+  before_action :set_user
+  def index
+    @post = Post.new
+    @posts = Post.all
+
+    respond_to do |format|
+      format.html
+      format.js
+    end
+  end
+
+  def show
+    @post = Post.find(params[:id])
+
+    respond_to do |format|
+      format.html
+      format.js
+    end
+  end
+
+  def new
+    @post = Post.new
+    @post.comments.build
+    respond_to do |format|
+      format.html
+      format.js
+    end
+  end
+
+  def edit
+    @post = Post.find(params[:id])
+    respond_to do |format|
+      format.html
+      format.js
+    end
+  end
+
+  def create
+    @post = current_user.posts.new(post_params)
+    respond_to do |format|
+      if @post.save
+        format.html { redirect_to root_path, notice: 'Post was successfully created.' }
+        format.js
+      else
+        # Check for errors
+        Rails.logger.info @post.errors.full_messages
+        format.html { render :new }
+        format.js
+      end
+    end
+  end
+
+  def update
+    @post = Post.find(params[:id])
+
+    respond_to do |format|
+      if @post.update_attributes(params[:post])
+        format.html { redirect_to(@post) }
+        format.js
+      else
+        format.html { render :action => "edit" }
+      end
+    end
+  end
+
+  def destroy
+    @post = Post.find(params[:id])
+    @post.destroy
+
+    respond_to do |format|
+      format.html { redirect_to root_path }
+      format.js
+    end
+  end
+  private
+  def set_user
+    @user = current_user
+  end
+  def post_params
+    params.require(:post).permit(:body, :description, comments_attributes: [:id, :commenter, :user_id, :_destroy]) # Include comments_attributes
+  end
+end
+
+
+
+
+
+
+
+
+
+#form
+
+<%= form_with(model: [current_user, @post], local: true, id: 'new_post') do |form| %>
+  <div class="field">
+    <%= form.label :title %>
+    <%= form.text_field :body, required: true %>
+  </div>
+
+  <div class="field">
+    <%= form.label :description %>
+    <%= form.text_field :description, required: true %>
+  </div>
+
+  <h3>Comments</h3>
+
+  <div id="comments">
+    <%= form.fields_for :comments do |comment_form| %>
+      <%= render 'comment_fields', f: comment_form %>
+    <% end %>
+  </div>
+
+  <button id="add_comment" type="button">Add Comment</button>
+
+  <div class="actions">
+    <%= form.submit "Create Post" %>
+  </div>
+<% end %>
+
+<script>
+    $(document).ready(function() {
+        $(document).on("click", ".add_fields", function(event) {
+            event.preventDefault();
+            let time = new Date().getTime();
+            let link = $(this);
+            let fields = link.data("fields").replace(/new_comment/g, time); // Replace new_comment with a unique identifier
+            $("#comments").append(fields);
+        });
+    });
+
+    $(document).ready(function() {
+        let commentIndex = 0; // Track the index of the comment fields
+
+        // Add new comment fields
+        $("#add_comment").click(function() {
+            commentIndex++;
+            let newCommentFields = `
+      <div class="nested-fields">
+        <div class="form-group">
+          <label for="post_comments_attributes_${commentIndex}_content">Comment</label>
+          <textarea class="form-control" name="post[comments_attributes][${commentIndex}][content]"></textarea>
+          <a href="#" class="remove_fields">Remove Comment</a>
+        </div>
+      </div>`;
+            $("#comments").append(newCommentFields);
+        });
+
+        // Remove comment fields
+        $(document).on("click", ".remove_fields", function(e) {
+            e.preventDefault();
+            $(this).closest(".nested-fields").remove();
+        });
+    });
+</script>
+
+
+
+
+
+
+
+
+
+
+#_comment_field
+
+<div class="nested-fields">
+  <div class="form-group">
+    <%= f.label :content, "Comment" %>
+    <%= f.text_field :commenter, class: 'form-control' %>
+    <%= f.hidden_field :user_id, value: current_user.id %>
+
+    <%= link_to 'Remove Comment', '#', class: 'remove_fields' %>
+  </div>
+</div>
