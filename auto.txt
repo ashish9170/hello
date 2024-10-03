@@ -1,0 +1,150 @@
+<h1 class="text-center">Posts#index</h1>
+<h1>Listing Posts</h1>
+
+<table id="posts" class="table table-striped table-bordered align-middle">
+  <thead class="thead-dark">
+  <tr>
+    <th scope="col">ID</th>
+    <th scope="col">Post</th>
+    <th scope="col">Description</th>
+    <th scope="col">Show</th>
+    <th scope="col">Edit</th>
+    <th scope="col">Destroy</th>
+    <th scope="col">Like/Unlike</th>
+    <th scope="col">Likes Count</th>
+  </tr>
+  </thead>
+  <tbody>
+  <% @posts.each do |post| %>
+    <%= render partial: 'post', locals: { post: post, current_user: current_user } %>
+  <% end %>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+<tr>
+  <td><%= post.id %></td>
+  <td><%= post.body %></td>
+  <td><%= post.description %></td>
+  <td>
+    <%= link_to 'Show', post_path(post), class: "show_post", data: { user_id: current_user.id, id: post.id } %>
+  </td>
+  <td><%= link_to 'Edit', edit_post_path(post) %></td>
+  <td>
+    <%= link_to 'Destroy', post_path(post), method: :delete, data: { confirm: 'Are you sure?' } %>
+  </td>
+  <td>
+    <% pre_like = post.likes.find { |like| like.user_id == current_user.id } %>
+    <% if pre_like %>
+      <%= button_to 'Unlike', post_like_path(post, pre_like), method: :delete, remote: true, class: 'btn btn-danger', data: { post_id: post.id } %>
+    <% else %>
+      <%= button_to 'Like', post_likes_path(post), method: :post, remote: true, class: 'btn btn-primary', data: { post_id: post.id } %>
+    <% end %>
+  </td>
+  <td id="post-<%= post.id %>-likes-count">
+    <%= post.likes.count %> <%= post.likes.count == 1 ? 'Like' : 'Likes' %>
+  </td>
+</tr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+$("#fname").on("input",(e)=>{
+$("#username").val(e.target.value+$("#lname").val())
+})
+$("#lname").on("input",(e)=>{
+$("#username").val($("#fname").val()+e.target.value)
+    
+    })
+
+
+
+
+<h2>Sign up</h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: 'form-horizontal' }) do |f| %>
+  <%= render "devise/shared/error_messages", resource: resource %>
+
+  <div class="form-group">
+    <%= f.label :firstname, class: 'col-sm-2 control-label' %>
+    <div class="col-sm-10">
+      <%= f.text_field :firstname, class: 'form-control', id: 'fname', autofocus: true, autocomplete: "given-name" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :lastname, class: 'col-sm-2 control-label' %>
+    <div class="col-sm-10">
+      <%= f.text_field :lastname, class: 'form-control', id: 'lname', autofocus: true, autocomplete: "family-name" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :username, class: 'col-sm-2 control-label' %>
+    <div class="col-sm-10">
+      <%= f.text_field :username, class: 'form-control', id: 'username', autofocus: true, autocomplete: "username" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :email, class: 'col-sm-2 control-label' %>
+    <div class="col-sm-10">
+      <%= f.email_field :email, class: 'form-control', autofocus: true, autocomplete: "email" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :password, class: 'col-sm-2 control-label' %>
+    <% if @minimum_password_length %>
+      <em>(<%= @minimum_password_length %> characters minimum)</em>
+    <% end %>
+    <div class="col-sm-10">
+      <%= f.password_field :password, class: 'form-control', autocomplete: "new-password" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :password_confirmation, class: 'col-sm-2 control-label' %>
+    <div class="col-sm-10">
+      <%= f.password_field :password_confirmation, class: 'form-control', autocomplete: "new-password" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <div class="col-sm-offset-2 col-sm-10">
+      <%= f.submit "Sign up", class: 'btn btn-primary' %>
+    </div>
+  </div>
+<% end %>
+
+<%= render "devise/shared/links" %>
+
+<script>
+  $(document).on('turbolinks:load', function() {
+    $("#fname").on("input", (e) => {
+      $("#username").val(e.target.value + $("#lname").val());
+    });
+    $("#lname").on("input", (e) => {
+      $("#username").val($("#fname").val() + e.target.value);
+    });
+  });
+</script>
