@@ -33,7 +33,7 @@ h1>New User</h1>
 
   <div>
     <%= form.label "12th Passing Year" %>
-    <%= form.select :twelfth_year, [], { include_blank: 'Select 10th Year First' }, id: "twelfth_year" %>
+    <%= form.select :twelfth_year, (1992..2024).to_a.reverse, { include_blank: 'Select Year' }, id: "twelfth_year" %>
   </div>
 
   <div>
@@ -59,28 +59,40 @@ h1>New User</h1>
       }
     });
 
-    // Dynamically populate 12th passing year based on 10th passing year
+    // Store all available 12th year options in an array
+    var allYears = [];
+    $('#twelfth_year option').each(function() {
+      if ($(this).val()) {
+        allYears.push($(this).val());
+      }
+    });
+
+    // Dynamically restrict 12th passing year options based on 10th passing year
     $('#tenth_year').on('change', function() {
       var tenthYear = parseInt($(this).val());
       var $twelfthYear = $('#twelfth_year');
-      
-      // Clear previous options
+
+      // Clear and reset the 12th passing year options
       $twelfthYear.empty();
 
       if (!isNaN(tenthYear)) {
         var startYear = tenthYear + 2; // Assuming 12th is 2 years after 10th
-        var currentYear = new Date().getFullYear();
 
         // Add a blank default option
         $twelfthYear.append($('<option>', { value: '', text: 'Select Year' }));
 
-        // Generate options for 12th passing year
-        for (var year = startYear; year <= currentYear; year++) {
-          $twelfthYear.append($('<option>', { value: year, text: year }));
-        }
+        // Add options that are greater than or equal to startYear
+        $.each(allYears, function(index, year) {
+          if (parseInt(year) >= startYear) {
+            $twelfthYear.append($('<option>', { value: year, text: year }));
+          }
+        });
       } else {
-        // If no valid 10th year selected, reset the 12th year field
-        $twelfthYear.append($('<option>', { value: '', text: 'Select 10th Year First' }));
+        // If 10th year is not selected, show all years
+        $twelfthYear.append($('<option>', { value: '', text: 'Select Year' }));
+        $.each(allYears, function(index, year) {
+          $twelfthYear.append($('<option>', { value: year, text: year }));
+        });
       }
     });
   });
