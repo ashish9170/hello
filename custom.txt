@@ -1,154 +1,195 @@
+rails generate model Task title:string description:text task_type:string status:string user:references assigned_user:references
+rails generate model Comment content:text user:references task:references
+rails db:migrate
+
+
+
+user
+
+class User < ApplicationRecord
+  devise :database_authenticatable, :registerable,
+         :recoverable, :rememberable, :validatable
+
+  has_many :tasks, foreign_key: :user_id, dependent: :destroy
+  has_many :assigned_tasks, class_name: 'Task', foreign_key: :assigned_user_id, dependent: :destroy
+  has_many :comments, dependent: :destroy
+end
+
+
+
+class Task < ApplicationRecord
+  belongs_to :user
+  belongs_to :assigned_user, class_name: 'User'
+  has_many :comments, dependent: :destroy
+
+  def display_name
+    "#{title} - #{task_type} - #{status} (#{assigned_user.email})"
+  end
+end
+
+
+
+
 class TasksController < ApplicationController
   before_action :authenticate_user!
 
-  def index
-    @tasks = current_user.tasks
-    @assigned_tasks = current_user.assigned_tasks
-  end
 
   def new
     @task = Task.new
-    @users = User.where.not(id: current_user.id)
+    @users = User.all # Load users directly here
   end
 
+  def index
+    @tasks = Task.all.includes(:assigned_user)
+    @task = Task.new
+    @task_options = @tasks.map do |task|
+      ["#{task.title} - #{task.user.email} - #{task.status}", task.id]
+    end
+  end
+
+  def show_comments
+    @task = Task.find(params[:id])
+    @comments = @task.comments.includes(:user)
+
+    respond_to do |format|
+      format.js   # This responds with JavaScript
+    end
+  end
   def create
-    @task = current_user.tasks.build(task_params)
+    @task = Task.new(task_params)
+    @task.user = current_user
     if @task.save
       redirect_to tasks_path, notice: 'Task was successfully created.'
     else
-      @users = User.where.not(id: current_user.id)
-      Rails.logger.debug @task.errors.full_messages
+      @users = User.all # Load users again in case of validation failure
       render :new
+    end
+  end
+
+  def show
+    @task = Task.find(params[:id]) # Fetch the task directly here
+    @comments = @task.comments.includes(:user)
+
+    respond_to do |format|
+      format.html # normal request
+      format.js   # AJAX request
     end
   end
 
   private
 
   def task_params
-    params.require(:task).permit(:title, :description, :assigned_user_id, tasks_attributes: [:id, :title, :description, :_destroy])
+    params.require(:task).permit(:title, :description, :task_type, :status, :assigned_user_id)
   end
 end
 
 
 
 
-task.rb
 
+<h1>Tasks</h1>
+<%= link_to 'New Task', new_task_path, class: 'btn btn-primary' %>
+<%= button_to 'Logout', destroy_user_session_path, method: :delete, class: 'btn btn-danger' %>
 
-class Task < ApplicationRecord
-  belongs_to :user
-  belongs_to :assigned_user, class_name: 'User'
-  accepts_nested_attributes_for :assigned_user, allow_destroy: true
-
-end
-
-
-
-user.rb
-
-class User < ApplicationRecord
-  # Devise modules
-  devise :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :validatable
-
-  # Associations
-  has_many :tasks, foreign_key: :user_id, dependent: :destroy
-  has_many :assigned_tasks, class_name: 'Task', foreign_key: :assigned_user_id, dependent: :destroy
-
-  accepts_nested_attributes_for :tasks, allow_destroy: true
-
-end
-
-
-
-task_field
-
-
-<div class="nested-fields">
-  <div class="field">
-    <%= f.label :title %>
-    <%= f.text_field :title %>
-  </div>
-
-  <div class="field">
-    <%= f.label :description %>
-    <%= f.text_area :description %>
-  </div>
-
-  <%= link_to_remove_association "Remove Task", f %>
+<div class="mt-4">
+  <label for="task_select">Select a Task:</label>
+  <select id="task_select" class="form-control">
+    <option value="">-- Select a Task --</option>
+    <% @task_options.each do |name, id| %>
+      <option value="<%= id %>"><%= name %></option>
+    <% end %>
+  </select>
 </div>
 
+<div id="task_comments" class="mt-4">
+  <!-- Comments will be loaded here -->
+</div>
+
+<script>
+    $(document).ready(function() {
+        $('#task_select').change(function() {
+            alert();
+            var taskId = $(this).val();
+            if (taskId) {
+                $.ajax({
+                    url: '/tasks/' + taskId + '/show_comments',
+                    dataType: 'script'
+                });
+            } else {
+                $('#task_comments').html('');
+            }
+        });
+    });
+</script>
 
 
-form
+
+_comment
 
 
-<%= form_with(model: @task, local: true) do |form| %>
-  <% if @task.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(@task.errors.count, "error") %> prohibited this task from being saved:</h2>
-      <ul>
-        <% @task.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
 
-  <div class="field">
-    <%= form.label :title %>
-    <%= form.text_field :title %>
-  </div>
-
-  <div class="field">
-    <%= form.label :description %>
-    <%= form.text_area :description %>
-  </div>
-
-  <div class="field">
-    <%= form.label :assigned_user_id %>
-    <%= form.collection_select :assigned_user_id, User.all, :id, :email %>
-  </div>
-
-  <div id="tasks">
-    <%= form.fields_for :tasks do |task_form| %>
-      <%= render 'task_fields', f: task_form %>
+<% if @comments.present? %>
+  <h3>Comments</h3>
+  <ul>
+    <% @comments.each do |comment| %>
+      <li>
+        <strong><%= comment.user.email %>:</strong>
+        <%= comment.content %>
+      </li>
     <% end %>
-    <div class="links">
-      <%= link_to_add_association 'Add Task', form, :tasks, data: { association_insertion_method: :append } %>
-    </div>
-  </div>
-
-  <div class="actions">
-    <%= form.submit %>
-  </div>
+  </ul>
+<% else %>
+  <p>No comments for this task.</p>
 <% end %>
 
 
 
+_show_comments
 
-<h1>My Tasks</h1>
-<% @tasks.each do |task| %>
-  <p>
-    <strong>Title:</strong>
-    <%= task.title %><br>
-    <strong>Description:</strong>
-    <%= task.description %><br>
-    <strong>Assigned To:</strong>
-    <%= task.assigned_user.email %>
-  </p>
-<% end %>
 
-<h1>Tasks Assigned to Me</h1>
-<% @assigned_tasks.each do |task| %>
-  <p>
-    <strong>Title:</strong>
-    <%= task.title %><br>
-    <strong>Description:</strong>
-    <%= task.description %><br>
-    <strong>Assigned By:</strong>
-    <%= task.user.email %>
-  </p>
-<% end %>
-<%= link_to "new task" , new_task_path %>
-<%= button_to "logout" ,  destroy_user_session_path,method: :delete%>
+$('#task_comments').html('<%= j render partial: "comment", locals: { comments: @comments } %>');
+
+
+class CommentsController < ApplicationController
+  before_action :authenticate_user!
+  before_action :set_task
+
+  def create
+    @comment = @task.comments.build(comment_params)
+    @comment.user = current_user
+    if @comment.save
+      respond_to do |format|
+        format.html { redirect_to @task, notice: 'Comment was successfully added.' }
+        format.js   # Add this line
+      end
+    else
+      render 'tasks/show'
+    end
+  end
+
+  private
+
+  def set_task
+    @task = Task.find(params[:task_id])
+  end
+
+  def comment_params
+    params.require(:comment).permit(:content)
+  end
+end
+
+
+
+  def change
+    create_table :tasks do |t|
+      t.string :title
+      t.text :description
+      t.string :task_type
+      t.string :status
+
+      t.references :user, null: false, foreign_key: {to_table: :users}
+      t.references :assign_user, null: false, foreign_key: {to_table: :users}
+
+      t.timestamps
+    end
+  end
