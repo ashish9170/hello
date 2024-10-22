@@ -1,85 +1,98 @@
-rails generate model Task title:string description:text task_type:string status:string user:references assigned_user:references
-rails generate model Comment content:text user:references task:references
+rails new todo_api --api
+cd todo_api
+
+
+gem 'devise'
+
+
+bundle install
+rails generate devise:install
+
+
+rails generate devise User
+rails db:migrate
+
+
+rails generate scaffold Todo title:string completed:boolean user:references
 rails db:migrate
 
 
 
-user
+user.rb
+
 
 class User < ApplicationRecord
   devise :database_authenticatable, :registerable,
          :recoverable, :rememberable, :validatable
 
-  has_many :tasks, foreign_key: :user_id, dependent: :destroy
-  has_many :assigned_tasks, class_name: 'Task', foreign_key: :assigned_user_id, dependent: :destroy
-  has_many :comments, dependent: :destroy
+  has_many :todos
 end
 
 
-
-class Task < ApplicationRecord
-  belongs_to :user
-  belongs_to :assigned_user, class_name: 'User'
-  has_many :comments, dependent: :destroy
-
-  def display_name
-    "#{title} - #{task_type} - #{status} (#{assigned_user.email})"
-  end
-end
+todos controller 
 
 
-
-
-class TasksController < ApplicationController
+class TodosController < ApplicationController
   before_action :authenticate_user!
+  before_action :set_todo, only: [:show, :update, :destroy]
 
-
-  def new
-    @task = Task.new
-    @users = User.all # Load users directly here
-  end
-
+  # GET /todos
   def index
-    @tasks = Task.all.includes(:assigned_user)
-    @task = Task.new
-    @task_options = @tasks.map do |task|
-      ["#{task.title} - #{task.user.email} - #{task.status}", task.id]
-    end
+    @todos = current_user.todos
+
+    render json: @todos
   end
 
-  def show_comments
-    @task = Task.find(params[:id])
-    @comments = @task.comments.includes(:user)
-
-    respond_to do |format|
-      format.js   # This responds with JavaScript
-    end
-  end
+  # POST /todos
   def create
-    @task = Task.new(task_params)
-    @task.user = current_user
-    if @task.save
-      redirect_to tasks_path, notice: 'Task was successfully created.'
+    @todo = current_user.todos.build(todo_params)
+
+    if @todo.save
+      render json: @todo, status: :created, location: @todo
     else
-      @users = User.all # Load users again in case of validation failure
-      render :new
+      render json: @todo.errors, status: :unprocessable_entity
     end
   end
 
-  def show
-    @task = Task.find(params[:id]) # Fetch the task directly here
-    @comments = @task.comments.includes(:user)
-
-    respond_to do |format|
-      format.html # normal request
-      format.js   # AJAX request
+  # PATCH/PUT /todos/1
+  def update
+    if @todo.update(todo_params)
+      render json: @todo
+    else
+      render json: @todo.errors, status: :unprocessable_entity
     end
+  end
+
+  # DELETE /todos/1
+  def destroy
+    @todo.destroy
   end
 
   private
+    def set_todo
+      @todo = current_user.todos.find(params[:id])
+    end
 
-  def task_params
-    params.require(:task).permit(:title, :description, :task_type, :status, :assigned_user_id)
+    def todo_params
+      params.require(:todo).permit(:title, :completed)
+    end
+end
+
+
+
+cors.rb
+
+
+# config/initializers/cors.rb
+
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins '*'
+    resource '*',
+      headers: :any,
+      methods: [:get, :post, :put, :patch, :delete, :options, :head],
+      expose: ['access-token', 'expiry', 'token-type', 'uid', 'client'],
+      credentials: false
   end
 end
 
@@ -87,109 +100,350 @@ end
 
 
 
-<h1>Tasks</h1>
-<%= link_to 'New Task', new_task_path, class: 'btn btn-primary' %>
-<%= button_to 'Logout', destroy_user_session_path, method: :delete, class: 'btn btn-danger' %>
-
-<div class="mt-4">
-  <label for="task_select">Select a Task:</label>
-  <select id="task_select" class="form-control">
-    <option value="">-- Select a Task --</option>
-    <% @task_options.each do |name, id| %>
-      <option value="<%= id %>"><%= name %></option>
-    <% end %>
-  </select>
-</div>
-
-<div id="task_comments" class="mt-4">
-  <!-- Comments will be loaded here -->
-</div>
-
-<script>
-    $(document).ready(function() {
-        $('#task_select').change(function() {
-            alert();
-            var taskId = $(this).val();
-            if (taskId) {
-                $.ajax({
-                    url: '/tasks/' + taskId + '/show_comments',
-                    dataType: 'script'
-                });
-            } else {
-                $('#task_comments').html('');
-            }
-        });
-    });
-</script>
+npx create-react-app todo_frontend
+cd todo_frontend
+npm install axios
 
 
 
-_comment
+
+src/services/api.js
+
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3000',
+});
+
+export default api;
 
 
 
-<% if @comments.present? %>
-  <h3>Comments</h3>
-  <ul>
-    <% @comments.each do |comment| %>
-      <li>
-        <strong><%= comment.user.email %>:</strong>
-        <%= comment.content %>
-      </li>
-    <% end %>
-  </ul>
-<% else %>
-  <p>No comments for this task.</p>
-<% end %>
+
+src/services/auth.js
+
+import api from './api';
+
+export const register = async (user) => {
+  const response = await api.post('/users', user);
+  return response.data;
+};
+
+export const login = async (user) => {
+  const response = await api.post('/users/sign_in', user);
+  return response.data;
+};
+
+export const logout = async () => {
+  const response = await api.delete('/users/sign_out');
+  return response.data;
+};
 
 
 
-_show_comments
 
+src/services/todos.js
 
-$('#task_comments').html('<%= j render partial: "comment", locals: { comments: @comments } %>');
+import api from './api';
 
+export const getTodos = async () => {
+  const response = await api.get('/todos');
+  return response.data;
+};
 
-class CommentsController < ApplicationController
-  before_action :authenticate_user!
-  before_action :set_task
+export const createTodo = async (todo) => {
+  const response = await api.post('/todos', todo);
+  return response.data;
+};
 
-  def create
-    @comment = @task.comments.build(comment_params)
-    @comment.user = current_user
-    if @comment.save
-      respond_to do |format|
-        format.html { redirect_to @task, notice: 'Comment was successfully added.' }
-        format.js   # Add this line
-      end
-    else
-      render 'tasks/show'
-    end
-  end
+export const updateTodo = async (id, todo) => {
+  const response = await api.put(`/todos/${id}`, todo);
+  return response.data;
+};
 
-  private
-
-  def set_task
-    @task = Task.find(params[:task_id])
-  end
-
-  def comment_params
-    params.require(:comment).permit(:content)
-  end
-end
+export const deleteTodo = async (id) => {
+  const response = await api.delete(`/todos/${id}`);
+  return response.data;
+};
 
 
 
-  def change
-    create_table :tasks do |t|
-      t.string :title
-      t.text :description
-      t.string :task_type
-      t.string :status
+src/context/AuthContext.js
 
-      t.references :user, null: false, foreign_key: {to_table: :users}
-      t.references :assign_user, null: false, foreign_key: {to_table: :users}
 
-      t.timestamps
-    end
-  end
+import React, { createContext, useState, useContext } from 'react';
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+
+  const login = (userData) => {
+    setUser(userData);
+  };
+
+  const logout = () => {
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  return useContext(AuthContext);
+};
+
+
+
+src/App.js
+
+import React from 'react';
+import { BrowserRouter as Router, Route, Link } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import TodoList from './components/TodoList';
+import Login from './components/Login';
+import Register from './components/Register';
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <div>
+          <Nav />
+          <Main />
+        </div>
+      </Router>
+    </AuthProvider>
+  );
+};
+
+const Nav = () => {
+  const { user, logout } = useAuth();
+
+  return (
+    <nav>
+      <ul>
+        {user ? (
+          <>
+            <li>
+              <Link to="/">Todos</Link>
+            </li>
+            <li>
+              <button onClick={logout}>Logout</button>
+            </li>
+          </>
+        ) : (
+          <>
+            <li>
+              <Link to="/login">Login</Link>
+            </li>
+            <li>
+              <Link to="/register">Register</Link>
+            </li>
+          </>
+        )}
+      </ul>
+    </nav>
+  );
+};
+
+const Main = () => {
+  const { user } = useAuth();
+
+  return (
+    <div>
+      {user ? (
+        <Route exact path="/" component={TodoList} />
+      ) : (
+        <>
+          <Route path="/login" component={Login} />
+          <Route path="/register" component={Register} />
+        </>
+      )}
+    </div>
+  );
+};
+
+export default App;
+
+
+
+
+src/components/Login.js
+
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { login } from '../services/auth';
+
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { login: authLogin } = useAuth();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const userData = await login({ email, password });
+      authLogin(userData);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h1>Login</h1>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        required
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        required
+      />
+      <button type="submit">Login</button>
+    </form>
+  );
+};
+
+export default Login;
+
+
+src/components/Register.js
+
+import React, { useState } from 'react';
+import { register } from '../services/auth';
+
+const Register = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await register({ email, password });
+      // Optionally, redirect or show a success message
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h1>Register</h1>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        required
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        required
+      />
+      <button type="submit">Register</button>
+    </form>
+  );
+};
+
+export default Register;
+
+
+
+src/components/TodoList.js
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { getTodos, createTodo, updateTodo, deleteTodo } from '../services/todos';
+
+const TodoList = () => {
+  const [todos, setTodos] = useState([]);
+  const [title, setTitle] = useState('');
+  const { user, logout } = useAuth();
+
+  useEffect(() => {
+    const fetchTodos = async () => {
+      try {
+        const todosData = await getTodos();
+        setTodos(todosData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    fetchTodos();
+  }, []);
+
+  const handleCreateTodo = async () => {
+    try {
+      const newTodo = await createTodo({ title, completed: false });
+      setTodos([...todos, newTodo]);
+      setTitle('');
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleToggleCompleted = async (id) => {
+    try {
+      const todo = todos.find((todo) => todo.id === id);
+      const updatedTodo = await updateTodo(id, { ...todo, completed: !todo.completed });
+      setTodos(todos.map((todo) => (todo.id === id ? updatedTodo : todo)));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeleteTodo = async (id) => {
+    try {
+      await deleteTodo(id);
+      setTodos(todos.filter((todo) => todo.id !== id));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Todo List</h1>
+      <button onClick={logout}>Logout</button>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="New Todo"
+      />
+      <button onClick={handleCreateTodo}>Add Todo</button>
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <span style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}>
+              {todo.title}
+            </span>
+            <button onClick={() => handleToggleCompleted(todo.id)}>Toggle Completed</button>
+            <button onClick={() => handleDeleteTodo(todo.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default TodoList;
+
+
+
+
